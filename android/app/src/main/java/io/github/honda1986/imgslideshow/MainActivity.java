@@ -45,6 +45,14 @@ import android.widget.Toast;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 
+import com.google.android.gms.ads.AdError;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.FullScreenContentCallback;
+import com.google.android.gms.ads.LoadAdError;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.interstitial.InterstitialAd;
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -67,6 +75,18 @@ public class MainActivity extends Activity {
 
     /** スライドショー本体。起動のたびに GitHub から最新版を取りに行き、取れなければアプリに入っている版を使う。 */
     static final String SCRIPT_URL = "https://raw.githubusercontent.com/honda1986/img-slideshow/main/ss2.js";
+
+    /**
+     * 再生前に出す全画面広告の ID。いまは Google 公式のテスト用 ID。
+     * AdMob で自分の広告ユニットを作ったら、ここと AndroidManifest.xml の APPLICATION_ID を差し替える。
+     */
+    static final String AD_UNIT_INTERSTITIAL = "ca-app-pub-3940256099942544/1033173712";
+    /** 広告を出す最短の間隔（3分）。毎回出すと使いにくく、AdMob の指針にも反する。 */
+    static final long AD_INTERVAL_MS = 3 * 60 * 1000L;
+
+    InterstitialAd interstitial;
+    boolean adLoading = false;
+    long lastAdShown = 0;
 
     static final int BG = 0xFF0F1214, PANEL = 0xFF1B2228, FG = 0xFFE6EAED, MUTED = 0xFF8F9BA5,
             ACCENT = 0xFF3CC1CB, ACCENT_FG = 0xFF06161A, LINE = 0xFF263039;
@@ -105,6 +125,7 @@ public class MainActivity extends Activity {
         setupWeb();
         setupBack();
         refreshScript();
+        MobileAds.initialize(this, status -> loadInterstitial());
         if (!handleIntent(getIntent())) showHome();
     }
 
@@ -433,6 +454,66 @@ public class MainActivity extends Activity {
         public void immersive(boolean on) {
             runOnUiThread(() -> setFullscreenMode(on));
         }
+
+        /** スライドショーの「再生」が押されたときに呼ばれる。広告を出し終えたら再生を始めさせる。 */
+        @JavascriptInterface
+        public void beforePlay() {
+            runOnUiThread(() -> adThenPlay());
+        }
+    }
+
+    // ---------- ads ----------
+
+    void loadInterstitial() {
+        if (adLoading || interstitial != null) return;
+        adLoading = true;
+        InterstitialAd.load(this, AD_UNIT_INTERSTITIAL, new AdRequest.Builder().build(), new InterstitialAdLoadCallback() {
+            @Override
+            public void onAdLoaded(InterstitialAd ad) {
+                interstitial = ad;
+                adLoading = false;
+            }
+
+            @Override
+            public void onAdFailedToLoad(LoadAdError error) {
+                adLoading = false;
+            }
+        });
+    }
+
+    void adThenPlay() {
+        long now = System.currentTimeMillis();
+        if (interstitial == null || now - lastAdShown < AD_INTERVAL_MS) {
+            // 広告がまだ用意できていない・間隔が短いときは待たせずに再生する
+            resumePlay();
+            loadInterstitial();
+            return;
+        }
+        InterstitialAd ad = interstitial;
+        interstitial = null;
+        ad.setFullScreenContentCallback(new FullScreenContentCallback() {
+            @Override
+            public void onAdShowedFullScreenContent() {
+                lastAdShown = System.currentTimeMillis();
+            }
+
+            @Override
+            public void onAdDismissedFullScreenContent() {
+                resumePlay();
+                loadInterstitial();
+            }
+
+            @Override
+            public void onAdFailedToShowFullScreenContent(AdError error) {
+                resumePlay();
+                loadInterstitial();
+            }
+        });
+        ad.show(this);
+    }
+
+    void resumePlay() {
+        web.evaluateJavascript("window.__ss2Resume&&window.__ss2Resume()", null);
     }
 
     void setFullscreenMode(boolean on) {

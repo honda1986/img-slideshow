@@ -45,3 +45,8 @@ android {
         abortOnError false
     }
 }
+
+dependencies {
+    // 再生前の全画面広告（Google AdMob）
+    implementation 'com.google.android.gms:play-services-ads:24.+'
+}

@@ -182,7 +182,7 @@ var bar=h('div',{class:'bar'},[bt('一覧',showGrid),bt('‹',function(){go(-1);
 var SL=[],cur=0,playing=false,timer=null,hideT=null,wl=null,tok=0;
 function wake(on){try{if(on&&!wl&&navigator.wakeLock)navigator.wakeLock.request('screen').then(function(l){wl=l;},function(){});if(!on&&wl){wl.release();wl=null;}}catch(e){}}
 function fs(){if(W.SSApp)return;try{if(!d.fullscreenElement&&hostEl.requestFullscreen){var p=hostEl.requestFullscreen();if(p&&p.catch)p.catch(function(){});}}catch(e){}}
-function play(i){SL=slides();if(!SL.length)return;cur=i;mode='view';gridEl.hidden=true;viewEl.hidden=false;playing=true;updFit();fs();show();poke();}
+function play(i,adDone){SL=slides();if(!SL.length)return;if(!adDone&&W.SSApp&&typeof W.SSApp.beforePlay==='function'){var done=false;W.__ss2Resume=function(){if(done)return;done=true;W.__ss2Resume=null;play(i,true);};setTimeout(function(){if(W.__ss2Resume)W.__ss2Resume();},60000);try{W.SSApp.beforePlay();return;}catch(e){W.__ss2Resume=null;}}cur=i;mode='view';gridEl.hidden=true;viewEl.hidden=false;playing=true;updFit();fs();show();poke();}
 function showGrid(){mode='grid';stopT();playing=false;wake(false);viewEl.hidden=true;gridEl.hidden=false;renderGrid();var t=gridEl.querySelector('[data-i="'+cur+'"]');if(t&&t.scrollIntoView)t.scrollIntoView({block:'center'});}
 function setImg(u,op,my,cb){var ni=d.createElement('img');ni.alt='';ni.draggable=false;ni.style.opacity=op;ni.onload=function(){if(my!==tok)return;stage.replaceChild(ni,vimg);vimg=ni;layout(true);if(cb)cb(true);};ni.onerror=function(){if(my!==tok)return;if(cb)cb(false);};ni.src=u;}
 function layout(rp){var nw=vimg.naturalWidth,nh=vimg.naturalHeight,Wd=stage.clientWidth,Ht=stage.clientHeight;if(!nw||!nh||!Wd||!Ht)return;var k=cfg.fit==='w'?Wd/nw:cfg.fit==='h'?Ht/nh:Math.min(Wd/nw,Ht/nh);vimg.style.width=nw*k+'px';vimg.style.height=nh*k+'px';if(rp){Z.s=1;Z.x=cfg.fit==='h'?0:1e6;Z.y=1e6;}clampZ();applyZ();}
@@ -230,7 +230,7 @@ var pushed=false;try{history.pushState({__ss2:1},'');pushed=true;}catch(e){}
 function onPop(){if(mode==='view'){showGrid();try{history.pushState({__ss2:1},'');}catch(e){}}else{pushed=false;close();}}
 W.addEventListener('popstate',onPop);
 var prevOv=d.documentElement.style.overflow;d.documentElement.style.overflow='hidden';
-function close(){stopT();wake(false);clearTimeout(hideT);W.removeEventListener('popstate',onPop);W.removeEventListener('resize',onRs);d.removeEventListener('keydown',onKey,true);try{if(d.fullscreenElement){var p=d.exitFullscreen();if(p&&p.catch)p.catch(function(){});}}catch(e){}d.documentElement.style.overflow=prevOv;hostEl.remove();try{if(W.SSApp)W.SSApp.immersive(false);}catch(e){}if(pushed){pushed=false;try{history.back();}catch(e){}}}
+function close(){stopT();wake(false);clearTimeout(hideT);W.removeEventListener('popstate',onPop);W.removeEventListener('resize',onRs);d.removeEventListener('keydown',onKey,true);try{if(d.fullscreenElement){var p=d.exitFullscreen();if(p&&p.catch)p.catch(function(){});}}catch(e){}W.__ss2Resume=null;d.documentElement.style.overflow=prevOv;hostEl.remove();try{if(W.SSApp)W.SSApp.immersive(false);}catch(e){}if(pushed){pushed=false;try{history.back();}catch(e){}}}
 hostEl.__close=close;
 d.body.appendChild(hostEl);
 try{if(W.SSApp)W.SSApp.immersive(true);}catch(e){}
