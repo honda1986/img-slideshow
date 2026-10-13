@@ -66,7 +66,12 @@ if(ib?exactAd(rw,rh):adSize(rw,rh))continue;
 if(rw&&rh&&rw<40&&rh<40)continue;
 tmp.push({it:{href:null,thumb:th,full:full,sig:'__page',direct:true,el:im,chk:!ok},ib:ib});}
 var anyB=tmp.some(function(x){return x.ib;});tmp.forEach(function(x){if(anyB&&!x.ib)return;if(known[x.it.full]){if(!live&&kItem[x.it.full])kItem[x.it.full].tpl=true;return;}known[x.it.full]=1;kItem[x.it.full]=x.it;if(live)candEls.push(x.it.el);out.push(x.it);});}
-function sortItems(){items.sort(function(x,y){var a=x.pg||0,c=y.pg||0;if(a!==c)return a-c;if(!x.el||!y.el||x.el===y.el)return 0;return x.el.compareDocumentPosition(y.el)&4?-1:1;});}
+function sortItems(){items.sort(function(x,y){var a=x.pg||0,c=y.pg||0;if(a!==c)return a-c;var ex=x.pel||x.el,ey=y.pel||y.el;if(ex&&ey&&ex!==ey)return ex.compareDocumentPosition(ey)&4?-1:1;return (x.sub||0)-(y.sub||0);});}
+var expMode=null,expQ=[],expN=0,expTried=0;
+function startExpand(){if(expMode==='off')return;items.forEach(function(it){if(!it.direct&&it.href&&!it.exq&&sel[it.sig]&&base(host(it.href))===HOME){it.exq=1;expQ.push(it);}});pumpExp();}
+function pumpExp(){while(expN<2&&expQ.length&&expMode!=='off'){(function(it){expN++;fetchDoc(it.href).then(function(doc){var add=[];pageImgs(doc,it.href,false,known,add);return add;},function(){return [];}).then(function(add){expN--;expTried++;if(add.length>=2)expMode='on';
+if(add.length&&expMode==='on'){add.forEach(function(x,j){x.sig=it.sig;x.pg=it.pg;x.pel=it.el;x.sub=j;});var k=items.indexOf(it);if(k>=0)items.splice(k,1);items=items.concat(add);sortItems();regroup();verifyAll();}
+if(expMode===null&&expTried>=2&&!expN)expMode='off';if(expMode==='off')expQ=[];if(mode==='grid')renderGrid();else refreshSL();pumpExp();});})(expQ.shift());}}
 var vq=[],vn=0,vT=null;
 function verifyAll(){items.forEach(function(it){if(it.chk&&!it.vq){it.vq=1;vq.push(it);}});pump();}
 function pump(){while(vn<4&&vq.length){(function(it){vn++;dims(it.full).then(function(m){vn--;if(m&&Math.min(m.w,m.h)>=cfg.min)it.chk=false;else it.bad=true;clearTimeout(vT);vT=setTimeout(function(){items=items.filter(function(x){return !x.bad;});regroup();if(mode==='grid')renderGrid();else refreshSL();},250);pump();});})(vq.shift());}}
@@ -148,7 +153,7 @@ var R=h('div',{class:'root'}),gridEl=h('div',{class:'grid'}),viewEl=h('div',{cla
 R.appendChild(gridEl);R.appendChild(viewEl);root.appendChild(R);
 var mode='grid';
 var subEl=null;
-function subText(){var pend=items.filter(function(it){return it.chk&&!it.bad;}).length;return '広告など '+excluded+' 件を除外'+(pend?' ・ ページ内の画像を確認中（'+pend+'）':'')+(status?' ・ '+status:'');}
+function subText(){var pend=items.filter(function(it){return it.chk&&!it.bad;}).length;var ex=expQ.length+expN;return '広告など '+excluded+' 件を除外'+(ex&&expMode!=='off'?' ・ 各話のページを読み込み中（残り '+ex+'）':'')+(pend?' ・ 画像を確認中（'+pend+'）':'')+(status?' ・ '+status:'');}
 function renderGrid(){var st=gridEl.scrollTop,S=slides();gridEl.textContent='';
 var sub=subText();
 gridEl.appendChild(h('div',{class:'top'},[h('span',{class:'cnt',text:S.length+'枚'}),h('span',{class:'sp'}),S.length?h('button',{class:'btn pri',text:'▶ 再生',onclick:function(){play(0);}}):null,h('button',{class:'btn','aria-label':'閉じる',text:'✕',onclick:function(){close();}}),(subEl=h('span',{class:'sub',text:sub}))]));
@@ -171,7 +176,7 @@ var offN=items.filter(function(it){return it.off;}).length;
 if(offN)gridEl.appendChild(h('div',{class:'row'},[h('button',{class:'chip',text:'外した '+offN+' 枚を戻す',onclick:function(){items.forEach(function(it){it.off=false;});renderGrid();}})]));
 var LG=linkGroups();if(LG.length>1&&!(hasPage()&&cfg.src==='page')){gridEl.appendChild(h('div',{class:'h3',text:'サムネイルのまとまり'}));gridEl.appendChild(h('p',{class:'note',text:'選んだまとまりの画像がスライドになります。このサイトでは次回も同じ選び方を使います。'}));
 LG.forEach(function(g){var on=!!sel[g.sig],mini=h('div',{class:'mini'});g.items.slice(0,6).forEach(function(it){mini.appendChild(h('img',{src:it.thumb,loading:'lazy',alt:''}));});
-gridEl.appendChild(h('button',{class:'grp'+(on?' on':''),onclick:function(){if(on)delete sel[g.sig];else sel[g.sig]=1;cfg.sigs=Object.keys(sel);save();renderGrid();}},[mini,h('span',{},[h('div',{class:'gk',text:(on?'✓ 使う':'使わない')}),h('div',{class:'gl',text:g.items.length+'枚'})])]));});}
+gridEl.appendChild(h('button',{class:'grp'+(on?' on':''),onclick:function(){if(on)delete sel[g.sig];else sel[g.sig]=1;cfg.sigs=Object.keys(sel);save();renderGrid();startExpand();}},[mini,h('span',{},[h('div',{class:'gk',text:(on?'✓ 使う':'使わない')}),h('div',{class:'gl',text:g.items.length+'枚'})])]));});}
 gridEl.scrollTop=st;}
 function rescan(){var add=[];excluded+=collect(d,location.href,true,known,add);pageImgs(d,location.href,true,known,add);add.forEach(function(it){it.pg=0;});items=items.concat(add);sortItems();regroup();if(!Object.keys(sel).length)initSel();verifyAll();return add.length;}
 function autoLoad(){if(scrolling)return;scrolling=true;stopScroll=false;var se=d.scrollingElement||d.documentElement,y0=se.scrollTop,lastH=-1,same=0,steps=0,got=0,t0=Date.now();
@@ -182,7 +187,7 @@ if(se.scrollTop+innerHeight>=se.scrollHeight-4){if(se.scrollHeight===lastH)same+
 step();}
 function more(all){if(!nextUrl||loading)return;loading=true;var n=0,added=0;
 function step(){var u=nextUrl;visited[noH(u)]=1;status='読み込み中…（'+(n+1)+(nextArt?'記事目）':'ページ目）');renderGrid();
-return fetchDoc(u).then(function(doc){var add=[];excluded+=collect(doc,u,false,known,add);pageImgs(doc,u,false,known,add);var pn=++pageNo;add.forEach(function(it){it.pg=pn;});added+=add.length;items=items.concat(add);sortItems();nextUrl=findNext(doc,docBase(doc,u),visited);n++;regroup();verifyAll();if(all&&nextUrl&&n<20)return step();},function(){status='次のページを読み込めませんでした';nextUrl=null;});}
+return fetchDoc(u).then(function(doc){var add=[];excluded+=collect(doc,u,false,known,add);pageImgs(doc,u,false,known,add);var pn=++pageNo;add.forEach(function(it){it.pg=pn;});added+=add.length;items=items.concat(add);sortItems();nextUrl=findNext(doc,docBase(doc,u),visited);n++;regroup();verifyAll();startExpand();if(all&&nextUrl&&n<20)return step();},function(){status='次のページを読み込めませんでした';nextUrl=null;});}
 step().then(function(){loading=false;if(status.indexOf('読み込み中')===0)status=n+(nextArt?'記事':'ページ')+'分・'+added+'枚を追加';renderGrid();refreshSL();});}
 var stage=h('div',{class:'stage'}),vimg=h('img',{alt:''}),msg=h('div',{class:'msg'}),badge=h('div',{class:'badge'}),prog=h('div',{class:'prog'});
 stage.appendChild(vimg);badge.hidden=true;msg.hidden=true;
@@ -195,7 +200,7 @@ var bar=h('div',{class:'bar'},[bt('一覧',showGrid),bt('‹',function(){go(-1);
 var SL=[],cur=0,playing=false,timer=null,hideT=null,wl=null,tok=0;
 function wake(on){try{if(on&&!wl&&navigator.wakeLock)navigator.wakeLock.request('screen').then(function(l){wl=l;},function(){});if(!on&&wl){wl.release();wl=null;}}catch(e){}}
 function fs(){if(W.SSApp)return;try{if(!d.fullscreenElement&&hostEl.requestFullscreen){var p=hostEl.requestFullscreen();if(p&&p.catch)p.catch(function(){});}}catch(e){}}
-function play(i){SL=slides();if(!SL.length)return;cur=i;mode='view';gridEl.hidden=true;viewEl.hidden=false;playing=!nextArt;updFit();fs();show();poke();}
+function play(i){SL=slides();if(!SL.length)return;cur=i;mode='view';gridEl.hidden=true;viewEl.hidden=false;playing=!(nextArt||expMode==='on');updFit();fs();show();poke();}
 function showGrid(){mode='grid';stopT();playing=false;wake(false);viewEl.hidden=true;gridEl.hidden=false;renderGrid();var t=gridEl.querySelector('[data-i="'+cur+'"]');if(t&&t.scrollIntoView)t.scrollIntoView({block:'center'});}
 function setImg(u,op,my,cb){var ni=d.createElement('img');ni.alt='';ni.draggable=false;ni.style.opacity=op;ni.onload=function(){if(my!==tok)return;stage.replaceChild(ni,vimg);vimg=ni;layout(true);if(cb)cb(true);};ni.onerror=function(){if(my!==tok)return;if(cb)cb(false);};ni.src=u;}
 function layout(rp){var nw=vimg.naturalWidth,nh=vimg.naturalHeight,Wd=stage.clientWidth,Ht=stage.clientHeight;if(!nw||!nh||!Wd||!Ht)return;var k=cfg.fit==='w'?Wd/nw:cfg.fit==='h'?Ht/nh:Math.min(Wd/nw,Ht/nh);vimg.style.width=nw*k+'px';vimg.style.height=nh*k+'px';if(rp){Z.s=1;Z.x=cfg.fit==='h'?0:1e6;Z.y=1e6;}clampZ();applyZ();}
@@ -210,7 +215,7 @@ function stopT(){clearTimeout(timer);timer=null;prog.style.transition='none';pro
 var wantNext=false,endShown=false;
 function pendingV(){return items.some(function(it){return it.chk&&!it.bad;});}
 function refreshSL(){if(mode!=='view')return;var c=SL[cur];SL=slides();var k=SL.indexOf(c);if(k>=0)cur=k;pos.textContent=(cur+1)+' / '+SL.length;if(!wantNext)return;if(cur<SL.length-1){wantNext=false;msg.hidden=true;go(1);}else if(!loading&&!nextUrl&&!pendingV()){wantNext=false;msg.textContent='最後まで読みました';msg.hidden=false;}else if(!loading&&nextUrl&&!pendingV())more(false);}
-function go(dl){if(!SL.length)return;if(dl>0&&cur>=SL.length-1&&(nextUrl||loading||pendingV())){wantNext=true;stopT();msg.textContent=nextArt?'次の記事を読み込み中…':'次のページを読み込み中…';msg.hidden=false;if(!loading&&nextUrl)more(false);return;}wantNext=false;if(dl>0&&cur>=SL.length-1&&pageNo>0&&!endShown){endShown=true;stopT();msg.textContent='最後まで読みました（もう一度で最初へ）';msg.hidden=false;return;}endShown=false;cur=(cur+dl+SL.length)%SL.length;show();}
+function go(dl){if(!SL.length)return;if(dl>0&&cur>=SL.length-1&&(nextUrl||loading||pendingV())){wantNext=true;stopT();msg.textContent=nextArt?'次の記事を読み込み中…':'次のページを読み込み中…';msg.hidden=false;if(!loading&&nextUrl)more(false);return;}wantNext=false;if(dl>0&&cur>=SL.length-1&&(pageNo>0||expMode==='on')&&!endShown){endShown=true;stopT();msg.textContent='最後まで読みました（もう一度で最初へ）';msg.hidden=false;return;}endShown=false;cur=(cur+dl+SL.length)%SL.length;show();}
 function updPlay(){bPlay.textContent=playing?'停止':'再生';wake(playing&&mode==='view');}
 function hideBar(){bar.classList.add('hide');pos.classList.add('hide');}
 function poke(){bar.classList.remove('hide');pos.classList.remove('hide');clearTimeout(hideT);hideT=setTimeout(hideBar,3000);}
@@ -250,6 +255,6 @@ function close(){stopT();wake(false);clearTimeout(hideT);W.removeEventListener('
 hostEl.__close=close;
 d.body.appendChild(hostEl);
 try{if(W.SSApp)W.SSApp.immersive(true);}catch(e){}
-renderGrid();verifyAll();
+renderGrid();verifyAll();startExpand();
 }
 SS2();
