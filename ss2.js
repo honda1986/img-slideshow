@@ -29,17 +29,17 @@ function thumbOf(im,b,live){var c=live&&im.currentSrc;if(c&&!/^data:/.test(c))re
 function bgOf(el,live){var s=live?getComputedStyle(el).backgroundImage:(el.getAttribute('style')||'');var m=/url\((['"]?)(.*?)\1\)/.exec(s||'');return m?m[2]:null;}
 function sig(el){var s=[];for(var i=0;i<4&&el&&el.tagName;i++,el=el.parentElement){var c=(el.getAttribute('class')||'').split(/\s+/).filter(function(x){return x&&!/\d/.test(x)&&!/^(is-|js-)?(active|current|selected|show|shown|visible|loaded|lazy\w*|hover)$/i.test(x);}).sort().slice(0,2).join('.');s.push(el.tagName.toLowerCase()+(c?'.'+c:''));}return s.join('<');}
 function docBase(doc,u){var bt=doc.querySelector('base[href]');return (bt&&abs(bt.getAttribute('href'),u))||u;}
-var candEls=[];
+var candEls=[],exK={};
 function collect(doc,url,live,known,out){
 var b=docBase(doc,url),ex=0,me=noH(url),as=doc.querySelectorAll('a[href]');
 for(var i=0;i<as.length;i++){
 var a=as[i],u=abs(a.getAttribute('href'),b);if(!u||noH(u)===me)continue;
 var im=a.querySelector('img'),th=null,w=0,h=0,r;
-if(im){th=thumbOf(im,b,live);if(live){r=im.getBoundingClientRect();w=r.width;h=r.height;if(!w&&!h)continue;}else{w=+im.getAttribute('width')||0;h=+im.getAttribute('height')||0;}}
+if(im){th=thumbOf(im,b,live);if(live){r=im.getBoundingClientRect();w=r.width;h=r.height;if(!w&&!h&&!im.getClientRects().length)continue;}else{w=+im.getAttribute('width')||0;h=+im.getAttribute('height')||0;}}
 else{var els=[a].concat([].slice.call(a.querySelectorAll('div,span,figure,i'),0,3));for(var j=0;j<els.length&&!th;j++){th=abs(bgOf(els[j],live),b);if(th&&live){r=els[j].getBoundingClientRect();w=r.width;h=r.height;}}}
 if(!th)continue;
 var direct=IMGX.test(pth(u));
-if(isAd(u)||isAd(th)||adAnc(a)||adSize(w,h)||(!direct&&base(host(u))!==HOME)){ex++;continue;}
+if(isAd(u)||isAd(th)||adAnc(a)||adSize(w,h)||(!direct&&base(host(u))!==HOME)){if(!exK[noH(u)]){exK[noH(u)]=1;ex++;}continue;}
 if(w&&h&&(w<40||h<40))continue;
 if(known[noH(u)])continue;known[noH(u)]=1;
 if(live&&im)candEls.push(im);
@@ -59,7 +59,7 @@ if(adSize(rw,rh))continue;
 if(rw&&rh&&rw<40&&rh<40)continue;
 known[full]=1;if(live)candEls.push(im);
 out.push({href:null,thumb:th,full:full,sig:'__page',direct:true,el:im,chk:!ok});}}
-function domSort(arr){return arr.sort(function(x,y){if(!x.el||!y.el||x.el===y.el)return 0;return x.el.compareDocumentPosition(y.el)&4?-1:1;});}
+function sortItems(){items.sort(function(x,y){var a=x.pg||0,c=y.pg||0;if(a!==c)return a-c;if(!x.el||!y.el||x.el===y.el)return 0;return x.el.compareDocumentPosition(y.el)&4?-1:1;});}
 var vq=[],vn=0,vT=null;
 function verifyAll(){items.forEach(function(it){if(it.chk&&!it.vq){it.vq=1;vq.push(it);}});pump();}
 function pump(){while(vn<4&&vq.length){(function(it){vn++;dims(it.full).then(function(m){vn--;if(m&&Math.min(m.w,m.h)>=cfg.min)it.chk=false;else it.bad=true;clearTimeout(vT);vT=setTimeout(function(){items=items.filter(function(x){return !x.bad;});regroup();if(mode==='grid')renderGrid();},250);pump();});})(vq.shift());}}
@@ -91,10 +91,10 @@ function resolve(it){if(it.p)return it.p;var p;
 if(it.direct){var fu=it.full||it.href;p=dims(fu).then(function(m){return m?{url:fu,w:m.w,h:m.h}:null;});}
 else p=fetchDoc(it.href).then(function(doc){return pick(bestFromDoc(doc,it.href));},function(){return null;});
 it.p=p.then(function(r){return r||dethumb(it);}).then(function(r){it.r=r;return r;});return it.p;}
-var items=[],known={},excluded=0,groups=[],sel={},visited={},nextUrl=null,loading=false,status='';
+var items=[],known={},excluded=0,groups=[],sel={},visited={},nextUrl=null,loading=false,status='',pageNo=0,scrolling=false,stopScroll=false;
 visited[noH(location.href)]=1;
 excluded=collect(d,location.href,true,known,items);
-pageImgs(d,location.href,true,known,items);items=domSort(items);
+pageImgs(d,location.href,true,known,items);sortItems();
 if(!items.length){var t=d.createElement('div');t.textContent='スライドショーにできる画像が見つかりませんでした';t.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:12px 18px;border-radius:10px;font:14px sans-serif;z-index:2147483647;max-width:90vw';d.body.appendChild(t);setTimeout(function(){t.remove();},3500);return;}
 (function(){var cs=new Set(candEls);[].forEach.call(d.images,function(im){if(cs.has(im))return;var s=im.currentSrc||im.src;if(s)chrome[s]=1;bigList(im,location.href).forEach(function(u){chrome[u]=1;});});})();
 nextUrl=findNext(d,docBase(d,location.href),visited);
@@ -134,12 +134,16 @@ root.appendChild(h('style',{text:CSS}));
 var R=h('div',{class:'root'}),gridEl=h('div',{class:'grid'}),viewEl=h('div',{class:'view'});viewEl.hidden=true;
 R.appendChild(gridEl);R.appendChild(viewEl);root.appendChild(R);
 var mode='grid';
+var subEl=null;
+function subText(){var pend=items.filter(function(it){return it.chk&&!it.bad;}).length;return '広告など '+excluded+' 件を除外'+(pend?' ・ ページ内の画像を確認中（'+pend+'）':'')+(status?' ・ '+status:'');}
 function renderGrid(){var st=gridEl.scrollTop,S=slides();gridEl.textContent='';
-var pend=items.filter(function(it){return it.chk&&!it.bad;}).length;var sub='広告など '+excluded+' 件を除外'+(pend?' ・ ページ内の画像を確認中（'+pend+'）':'')+(status?' ・ '+status:'');
-gridEl.appendChild(h('div',{class:'top'},[h('span',{class:'cnt',text:S.length+'枚'}),h('span',{class:'sp'}),S.length?h('button',{class:'btn pri',text:'▶ 再生',onclick:function(){play(0);}}):null,h('button',{class:'btn','aria-label':'閉じる',text:'✕',onclick:function(){close();}}),h('span',{class:'sub',text:sub})]));
+var sub=subText();
+gridEl.appendChild(h('div',{class:'top'},[h('span',{class:'cnt',text:S.length+'枚'}),h('span',{class:'sp'}),S.length?h('button',{class:'btn pri',text:'▶ 再生',onclick:function(){play(0);}}):null,h('button',{class:'btn','aria-label':'閉じる',text:'✕',onclick:function(){close();}}),(subEl=h('span',{class:'sub',text:sub}))]));
 if(hasLink()&&hasPage()){var nl=items.filter(function(it){return it.sig!=='__page'&&sel[it.sig]&&!it.off;}).length,np=items.filter(function(it){return it.sig==='__page'&&!it.bad&&!it.chk&&!it.off;}).length;var srow=h('div',{class:'row'},[h('span',{class:'lab',text:'集める'})]);[['both','両方',nl+np],['link','サムネイルの先',nl],['page','ページ内の画像',np]].forEach(function(o){srow.appendChild(h('button',{class:'chip'+(cfg.src===o[0]?' on':''),text:o[1]+' '+o[2],onclick:function(){cfg.src=o[0];save();renderGrid();}}));});gridEl.appendChild(srow);}
 var row=h('div',{class:'row',style:hasLink()&&hasPage()?'padding-top:0':''},[h('span',{class:'lab',text:'切り替え'})]);
 [3,5,8,15].forEach(function(s){row.appendChild(h('button',{class:'chip'+(cfg.sec===s?' on':''),text:s+'秒',onclick:function(){cfg.sec=s;save();renderGrid();}}));});
+var se=d.scrollingElement||d.documentElement;if(scrolling){row.appendChild(h('span',{class:'sp'}));row.appendChild(h('button',{class:'chip',text:'■ 読み込みを止める',onclick:function(){stopScroll=true;}}));}
+else if(se.scrollHeight>innerHeight*1.5){row.appendChild(h('span',{class:'sp'}));row.appendChild(h('button',{class:'chip',text:'↓ 下まで読み込む',onclick:function(){autoLoad();}}));}
 if(nextUrl&&!loading){row.appendChild(h('span',{class:'sp'}));row.appendChild(h('button',{class:'chip',text:'＋次のページ',onclick:function(){more(false);}}));row.appendChild(h('button',{class:'chip',text:'＋全ページ',onclick:function(){more(true);}}));}
 gridEl.appendChild(row);
 var frow=h('div',{class:'row',style:'padding-top:0'},[h('span',{class:'lab',text:'表示'})]);
@@ -156,9 +160,16 @@ var LG=linkGroups();if(LG.length>1&&!(hasPage()&&cfg.src==='page')){gridEl.appen
 LG.forEach(function(g){var on=!!sel[g.sig],mini=h('div',{class:'mini'});g.items.slice(0,6).forEach(function(it){mini.appendChild(h('img',{src:it.thumb,loading:'lazy',alt:''}));});
 gridEl.appendChild(h('button',{class:'grp'+(on?' on':''),onclick:function(){if(on)delete sel[g.sig];else sel[g.sig]=1;cfg.sigs=Object.keys(sel);save();renderGrid();}},[mini,h('span',{},[h('div',{class:'gk',text:(on?'✓ 使う':'使わない')}),h('div',{class:'gl',text:g.items.length+'枚'})])]));});}
 gridEl.scrollTop=st;}
+function rescan(){var add=[];excluded+=collect(d,location.href,true,known,add);pageImgs(d,location.href,true,known,add);add.forEach(function(it){it.pg=0;});items=items.concat(add);sortItems();regroup();if(!Object.keys(sel).length)initSel();verifyAll();return add.length;}
+function autoLoad(){if(scrolling)return;scrolling=true;stopScroll=false;var se=d.scrollingElement||d.documentElement,y0=se.scrollTop,lastH=-1,same=0,steps=0,got=0,t0=Date.now();
+function fin(){got+=rescan();se.scrollTop=y0;scrolling=false;status=(stopScroll?'読み込みを止めました・':'下まで読み込みました・')+got+'枚を追加';renderGrid();}
+function step(){if(stopScroll||Date.now()-t0>90000){fin();return;}steps++;var H=se.scrollHeight;se.scrollTop=Math.min(H,se.scrollTop+innerHeight*0.9);
+status='下まで読み込み中…（'+Math.min(99,Math.round((se.scrollTop+innerHeight)/se.scrollHeight*100))+'%）';if(steps%6===0){got+=rescan();if(mode==='grid')renderGrid();}else if(subEl)subEl.textContent=subText();
+if(se.scrollTop+innerHeight>=se.scrollHeight-4){if(se.scrollHeight===lastH)same++;else{same=0;lastH=se.scrollHeight;}if(same>=3){fin();return;}setTimeout(step,700);}else setTimeout(step,200);}
+step();}
 function more(all){if(!nextUrl||loading)return;loading=true;var n=0,added=0;
 function step(){var u=nextUrl;visited[noH(u)]=1;status='読み込み中…（'+(n+1)+'ページ目）';renderGrid();
-return fetchDoc(u).then(function(doc){var add=[];excluded+=collect(doc,u,false,known,add);pageImgs(doc,u,false,known,add);add=domSort(add);added+=add.length;items=items.concat(add);nextUrl=findNext(doc,docBase(doc,u),visited);n++;regroup();verifyAll();if(all&&nextUrl&&n<20)return step();},function(){status='次のページを読み込めませんでした';nextUrl=null;});}
+return fetchDoc(u).then(function(doc){var add=[];excluded+=collect(doc,u,false,known,add);pageImgs(doc,u,false,known,add);var pn=++pageNo;add.forEach(function(it){it.pg=pn;});added+=add.length;items=items.concat(add);sortItems();nextUrl=findNext(doc,docBase(doc,u),visited);n++;regroup();verifyAll();if(all&&nextUrl&&n<20)return step();},function(){status='次のページを読み込めませんでした';nextUrl=null;});}
 step().then(function(){loading=false;if(status.indexOf('読み込み中')===0)status=n+'ページ分・'+added+'枚を追加';renderGrid();});}
 var stage=h('div',{class:'stage'}),vimg=h('img',{alt:''}),msg=h('div',{class:'msg'}),badge=h('div',{class:'badge'}),prog=h('div',{class:'prog'});
 stage.appendChild(vimg);badge.hidden=true;msg.hidden=true;
