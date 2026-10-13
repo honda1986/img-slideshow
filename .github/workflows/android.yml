@@ -1,0 +1,61 @@
+name: Android アプリをビルド
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: スライドショー本体をアプリに入れる
+        run: |
+          mkdir -p android/app/src/main/assets
+          cp ss2.js android/app/src/main/assets/ss2.js
+
+      - name: ビルド（APK と AAB）
+        working-directory: android
+        run: gradle --no-daemon --stacktrace assembleRelease bundleRelease 2>&1 | tee ../build.log
+
+      - name: リリースに APK を載せる
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="1.0.${{ github.run_number }}"
+          cp android/app/build/outputs/apk/release/app-release.apk imgslideshow.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab imgslideshow.aab
+          gh release create "v$V" imgslideshow.apk imgslideshow.aab \
+            --title "スライドショー $V" \
+            --notes "imgslideshow.apk をスマホでダウンロードしてインストールしてください。" \
+            --latest
+
+      - name: 失敗したときはログを ci-log ブランチに残す
+        if: failure()
+        run: |
+          tail -n 400 build.log > /tmp/ci.log 2>/dev/null || echo "no build.log" > /tmp/ci.log
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan ci-log
+          git rm -rfq .
+          cp /tmp/ci.log ci.log
+          git add ci.log
+          git commit -qm "build log for run ${{ github.run_number }}"
+          git push -f origin ci-log

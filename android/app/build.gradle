@@ -1,0 +1,47 @@
+plugins {
+    id 'com.android.application'
+}
+
+// GitHub Actions の実行番号をそのままバージョン番号にする（毎回増えるので上書きインストールできる）
+def runNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+
+android {
+    namespace 'io.github.honda1986.imgslideshow'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'io.github.honda1986.imgslideshow'
+        minSdk 26
+        targetSdk 36
+        versionCode runNumber
+        versionName "1.0.${runNumber}"
+    }
+
+    // 自分のスマホに入れる用の署名鍵。Google Play に出すときは、公開しない別の鍵に切り替える。
+    signingConfigs {
+        personal {
+            storeFile rootProject.file('signing/personal.jks')
+            storeType 'pkcs12'
+            storePassword 'imgslideshow'
+            keyAlias 'personal'
+            keyPassword 'imgslideshow'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.personal
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
