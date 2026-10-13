@@ -33,6 +33,7 @@ jobs:
 
       - name: ビルド（APK と AAB）
         working-directory: android
+        shell: bash
         run: gradle --no-daemon --stacktrace assembleRelease bundleRelease 2>&1 | tee ../build.log
 
       - name: リリースに APK を載せる

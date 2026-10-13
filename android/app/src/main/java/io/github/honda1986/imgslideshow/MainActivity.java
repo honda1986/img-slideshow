@@ -402,7 +402,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageStarted(WebView v, String url, Bitmap favicon) {
                 blocked.set(0);
-                if (immersive) setImmersive(false);
+                if (immersive) setFullscreenMode(false);
                 if (!homeShown) setUrlText(url);
             }
 
@@ -431,11 +431,11 @@ public class MainActivity extends Activity {
     class Bridge {
         @JavascriptInterface
         public void immersive(boolean on) {
-            runOnUiThread(() -> setImmersive(on));
+            runOnUiThread(() -> setFullscreenMode(on));
         }
     }
 
-    void setImmersive(boolean on) {
+    void setFullscreenMode(boolean on) {
         immersive = on;
         toolbar.setVisibility(on ? View.GONE : View.VISIBLE);
         progress.setVisibility(View.INVISIBLE);
@@ -542,7 +542,7 @@ public class MainActivity extends Activity {
 
     void showHome() {
         homeShown = true;
-        if (immersive) setImmersive(false);
+        if (immersive) setFullscreenMode(false);
         web.stopLoading();
         renderSites();
         homeView.setVisibility(View.VISIBLE);
